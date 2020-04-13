@@ -20,16 +20,18 @@ import math
 
 class SpiralConv(nn.Module):
     def __init__(self, in_c, spiral_size,out_c,activation='elu',bias=True,device=None, 
-                 injection = False, residual = False, num_points = None):
+                 injection = False, residual = False, num_points = None, 
+                 order = 1, normalize = 'final', model = 'full'):
         super(SpiralConv,self).__init__()
         self.in_c = in_c
         self.out_c = out_c
         self.device = device
         self.injection = injection
         self.residual = residual
+        self.order = order
+        self.normalize = normalize
+        self.model = model
 
-        self.conv = nn.Linear(in_c*spiral_size,out_c,bias=False)  
-#         self.conva2 = nn.Linear(in_c*spiral_size,out_c,bias=False)
         if bias:
             self.bias = Parameter(torch.Tensor(out_c))
             bound = 1 / math.sqrt(in_c*spiral_size)
@@ -37,19 +39,27 @@ class SpiralConv(nn.Module):
         else:
             self.register_parameter('bias', None)
             
-        if self.residual:
-#             self.proj = nn.Linear(in_c,out_c,bias=False)
-            self.convs2 = nn.Linear(in_c*spiral_size,out_c,bias=False)
-            self.conva3 = nn.Linear(in_c*spiral_size,out_c,bias=False)
-            self.convs3 = nn.Linear(out_c*spiral_size,out_c,bias=False)
-            
         if self.injection:
-#             self.normalizer4 =  nn.BatchNorm1d((num_points+1) * out_c, affine= True)
-            self.normalizer3 =  nn.BatchNorm1d((num_points+1) * out_c, affine= True)
-            self.normalizer2 =  nn.BatchNorm1d((num_points+1) * out_c, affine= True)
-#             self.normalizer1 =  nn.BatchNorm1d((num_points+1) * out_c, affine= True)
-#             self.normalizer =  nn.BatchNorm1d((num_points+1) * out_c, affine= True)
-
+            #             self.proj = nn.Linear(in_c,out_c,bias=False)
+            if self.model == 'full':
+                self.conva =  nn.ModuleList([nn.Linear(in_c*spiral_size,out_c,bias=False) for k in range(0,self.order-1)])
+                self.convs =  nn.ModuleList([nn.Linear(in_c*spiral_size,out_c,bias=False)] + 
+                                            [nn.Linear(out_c*spiral_size,out_c,bias=False) for k in range(0,self.order-2)])
+            elif self.model == 'simple':
+                self.convs = nn.Linear(in_c*spiral_size,out_c,bias=False)  
+                
+            if self.normalize == 'final':
+                self.normalizer =  nn.BatchNorm1d((num_points+1) * out_c, affine= True)
+            else:
+                self.normalizer =  nn.ModuleList([nn.BatchNorm1d((num_points+1) * out_c, affine= True)
+                                                  for k in range(0,self.order-1)])   
+        else:
+            if self.model == 'mlp':
+                self.fc1 = nn.Linear(in_c*spiral_size, 64, bias = True)
+                self.fc2 = nn. Linear(64, out_c, bias = True)
+            elif self.model == 'linear':
+                self.conv = nn.Linear(in_c*spiral_size,out_c,bias=False) 
+            
         
         if activation == 'relu':
             self.activation = nn.ReLU()
@@ -75,7 +85,7 @@ class SpiralConv(nn.Module):
         spirals = x[batch_index,spirals_index,:].view(bsize*num_pts,spiral_size*feats) # [bsize*numpt, spiral*feats]
 
         if self.injection:
-            if self.residual:
+            if self.model == 'full':
                 #1
 #                 s_x = self.proj(x).reshape(bsize*num_pts,-1)
 #                 out_1 = self.conv(spirals)
@@ -90,92 +100,83 @@ class SpiralConv(nn.Module):
 #                 out_2 = out_2.reshape(bsize, num_pts * out_2.shape[-1])
 #                 out_feat = self.normalizer2(out_2).reshape(bsize*num_pts,-1) + out_1 + self.bias  
 
-#                 #2nd order
-#                 out_1 = self.conv1(spirals)
-#                 s_x = self.conv(spirals)
-#                 out_2 = out_1*s_x
-#                 out_2 = out_2.reshape(bsize, num_pts * out_2.shape[-1])
-#                 out_feat = self.normalizer(out_2).reshape(bsize*num_pts,-1) + out_1 + self.bias  
+                spirals_x1 = spirals
+                spirals_xk_1 = spirals
+                for k in range(0,self.order-1):
+                    a_xk = self.conva[k](spirals_x1)
+                    s_xk = self.convs[k](spirals_xk_1)
+                    
+                    if self.normalize == 'all':
+                        if k>=1 and self.residual:
+                            out_k = a_xk*s_xk + a_xk + out_k
+                        else:
+                            out_k = a_xk*s_xk + a_xk
+                        out_k = out_k.reshape(bsize, num_pts * out_k.shape[-1])
+                        out_k = self.normalizer[k](out_k).reshape(bsize*num_pts,-1)
+                        spirals_xk_1 = out_k.view(bsize,num_pts,self.out_c)\
+                                             [batch_index,spirals_index,:].view(bsize*num_pts,spiral_size*self.out_c)
+                    elif self.normalize == '2nd': 
+                        if k>=1 and self.residual:
+                            out_k_1 = out_k
+                            out_k = a_xk*s_xk
+                            out_k = out_k.reshape(bsize, num_pts * out_k.shape[-1])
+                            out_k = self.normalizer[k](out_k).reshape(bsize*num_pts,-1) + a_xk + out_k_1
+                        else:
+                            out_k = a_xk*s_xk
+                            out_k = out_k.reshape(bsize, num_pts * out_k.shape[-1])
+                            out_k = self.normalizer[k](out_k).reshape(bsize*num_pts,-1) + a_xk                  
+                        spirals_xk_1 = out_k.view(bsize,num_pts,self.out_c)\
+                                             [batch_index,spirals_index,:].view(bsize*num_pts,spiral_size*self.out_c)
+                    elif self.normalize == 'final':
+                        if k>=1 and self.residual:
+                            if k==self.order-2:
+                                out_k_1 = out_k
+                                out_k = a_xk*s_xk
+                                out_k = out_k.reshape(bsize, num_pts * out_k.shape[-1])
+                                out_k = self.normalizer(out_k).reshape(bsize*num_pts,-1) + a_xk + out_k_1
+                            else:
+                                out_k = a_xk*s_xk + a_xk + out_k
+                        else:
+                            if k==self.order-2:
+                                out_k = a_xk*s_xk
+                                out_k = out_k.reshape(bsize, num_pts * out_k.shape[-1])
+                                out_k = self.normalizer(out_k).reshape(bsize*num_pts,-1) + a_xk                           
+                            else:
+                                out_k = a_xk*s_xk + a_xk
+                        spirals_xk_1 = out_k.view(bsize,num_pts,self.out_c)\
+                                            [batch_index,spirals_index,:].view(bsize*num_pts,spiral_size*self.out_c)
 
-                #3rd order
-                a_x2 = self.conva2(spirals)
-                s_x2 = self.convs2(spirals)
-                out_2 = a_x2*s_x2
-                a_x2 = a_x2.reshape(bsize, num_pts * a_x2.shape[-1])
-                out_2 = out_2.reshape(bsize, num_pts * out_2.shape[-1])
-                out_2 = self.normalizer2(out_2 + a_x2).reshape(bsize*num_pts,-1)
-                out_2 = out_2.view(bsize,num_pts,self.out_c)
-                spirals2 = out_2[batch_index,spirals_index,:].view(bsize*num_pts,spiral_size*self.out_c)
-
-                a_x3 = self.conva3(spirals)
-                s_x3 = self.convs3(spirals2)
-                out_3 = a_x3*s_x3
-                out_3 = out_3.reshape(bsize, num_pts * out_2.shape[-1])
-                out_feat = self.normalizer3(out_3).reshape(bsize*num_pts,-1) + a_x3 + self.bias  
-
-            else:  
-        
-                #2nd order
-#                 out_1 = self.conv(spirals)
-#                 out_2 = out_1*out_1
-#                 out_2 = out_2.reshape(bsize, num_pts * out_2.shape[-1])
-#                 out_feat = self.normalizer(out_2).reshape(bsize*num_pts,-1) + out_1 + self.bias
+                out_feat = out_k + self.bias
                 
-                #3rd order
-                out_1 = self.conv(spirals)
-                out_2 = out_1*out_1
-                out_3 = out_1*out_1*out_1
-                out_2 = out_2.reshape(bsize, num_pts * out_2.shape[-1])
-                out_3 = out_3.reshape(bsize, num_pts * out_3.shape[-1])
-                out_feat = self.normalizer3(out_3).reshape(bsize*num_pts,-1) + \
-                                    self.normalizer2(out_2).reshape(bsize*num_pts,-1) + out_1 + self.bias
                 
-                #4th order
-                out_1 = self.conv(spirals)
-                out_2 = out_1*out_1
-                out_3 = out_1*out_1*out_1
-                out_4 = out_1*out_1*out_1*out_1
-                out_2 = out_2.reshape(bsize, num_pts * out_2.shape[-1])
-                out_3 = out_3.reshape(bsize, num_pts * out_3.shape[-1])
-                out_4 = out_4.reshape(bsize, num_pts * out_4.shape[-1])
-                out_feat = self.normalizer4(out_4).reshape(bsize*num_pts,-1)+ \
-                                      self.normalizer3(out_3).reshape(bsize*num_pts,-1) + \
-                                      self.normalizer2(out_2).reshape(bsize*num_pts,-1) + \
-                                      out_1 + self.bias
+            elif self.model == 'simple':  
                 
-    #             out_1 = out_1.reshape(bsize, num_pts * out_1.shape[-1])
-    #             out_feat = self.normalizer(out_1).reshape(bsize*num_pts,-1) + self.bias 
-#                 out_2 = out_1*out_1
-    #             out_3 = out_1*out_1*out_1
-    #             out_4 = out_1*out_1*out_1*out_1
-    #             out_feat = self.normalizer(out_2) + out_1
-    #             out_feat = self.normalizer(out_2) + out_1 + self.bias 
-#                 out_1 = out_1.reshape(bsize, num_pts * out_1.shape[-1])
-#                 out_2 = out_2.reshape(bsize, num_pts * out_2.shape[-1])
-    #             out_3 = out_3.reshape(bsize, num_pts * out_3.shape[-1])
-    #             out_4 = out_4.reshape(bsize, num_pts * out_4.shape[-1])
-    #             out_feat = self.normalizer4(out_4).reshape(bsize*num_pts,-1)+ \
-    #                                   self.normalizer3(out_3).reshape(bsize*num_pts,-1) + \
-    #                                   self.normalizer2(out_2).reshape(bsize*num_pts,-1) + \
-    #                                   out_1 + self.bias
-    #             out_feat = self.normalizer3(out_3).reshape(bsize*num_pts,-1) + \
-    #                         self.normalizer2(out_2).reshape(bsize*num_pts,-1) + out_1 + self.bias
-#                 out_feat = self.normalizer2(out_2).reshape(bsize*num_pts,-1)  + self.normalizer1(out_1).reshape(bsize*num_pts,-1) + self.bias
-    #             out_feat = self.normalizer(out_2).reshape(bsize*num_pts,-1) + out_1
-    #             out_feat = self.normalizer(out_2) + out_1
-    #             out_2 = out_2.reshape(bsize, num_pts * out_2.shape[-1])
-    #             out_feat = self.normalizer(out_2).reshape(bsize*num_pts,-1) + out_1 + self.bias 
-    #             out_feat = out_2 + out_1 + self.bias 
-    #             out_feat = self.normalizer2(out_2) + self.normalizer1(out_1) + self.bias 
-    #             out_feat = out_1 + self.bias 
-    #             out_feat = self.normalizer(out_feat)
-
+                out_1 = self.convs(spirals)
+                out_feat = out_1
+                for k in range(0,self.order-1):
+                    out_k = out_1**(k+2)
+                    if self.normalize == '2nd':
+                        out_k = out_k.reshape(bsize, num_pts * out_k.shape[-1])
+                        out_k = self.normalizer[k](out_k).reshape(bsize*num_pts,-1)      
+                    elif self.normalize == 'final':
+                        if k==self.order-2:
+                            out_k = out_k.reshape(bsize, num_pts * out_k.shape[-1])
+                            out_k = self.normalizer(out_k).reshape(bsize*num_pts,-1)                           
+                    out_feat = out_k + out_feat
+                    
+                out_feat = out_feat + self.bias
+  
         else:
-            out_feat = self.conv(spirals) + self.bias 
-            if self.residual:
-                proj_x = self.proj(x)
-                out_feat = out_feat + proj_x
+            if self.model == 'mlp':
+                out_feat = self.fc2(nn.ReLU()(self.fc1(spirals)))
+            elif self.model == 'linear':
+                out_feat = self.conv(spirals) + self.bias 
             
+#             if self.residual:
+#                 proj_x = self.proj(x)
+#                 out_feat = out_feat + proj_x
+
+
         out_feat = self.activation(out_feat)
 
         out_feat = out_feat.view(bsize,num_pts,self.out_c)
@@ -188,7 +189,8 @@ class SpiralConv(nn.Module):
     
 class SpiralAutoencoder_extra_conv(nn.Module):
     def __init__(self, filters_enc, filters_dec, latent_size, sizes, spiral_sizes, 
-                 spirals, D, U, device, activation = 'elu', injection = False, residual = True):
+                 spirals, D, U, device, activation = 'elu', injection = False, 
+                 residual = False, order = 1, normalize = None, model = None):
         super(SpiralAutoencoder_extra_conv,self).__init__()
         self.latent_size = latent_size
         self.sizes = sizes
@@ -202,6 +204,10 @@ class SpiralAutoencoder_extra_conv(nn.Module):
         self.activation = activation
         self.injection = injection
         self.residual = residual
+        self.order = order
+        self.normalize = normalize
+        self.model = model
+        
         
         self.conv = []
         input_size = filters_enc[0][0]
@@ -210,13 +216,15 @@ class SpiralAutoencoder_extra_conv(nn.Module):
                 self.conv.append(SpiralConv(input_size, spiral_sizes[i], filters_enc[1][i],
                                             activation=self.activation, device=device, 
                                             injection = self.injection, residual = self.residual, 
-                                            num_points = sizes[i]).to(device))
+                                            num_points = sizes[i], order = self.order,
+                                            normalize = self.normalize, model = self.model).to(device))
                 input_size = filters_enc[1][i]
 
             self.conv.append(SpiralConv(input_size, spiral_sizes[i], filters_enc[0][i+1],
                                         activation=self.activation, device=device, 
                                         injection = self.injection, residual = self.residual,
-                                        num_points =  sizes[i]).to(device))
+                                        num_points =  sizes[i], order = self.order, 
+                                        normalize = self.normalize, model = self.model).to(device))
             input_size = filters_enc[0][i+1]
 
         self.conv = nn.ModuleList(self.conv)   
@@ -242,32 +250,38 @@ class SpiralAutoencoder_extra_conv(nn.Module):
                 self.dconv.append(SpiralConv(input_size, spiral_sizes[-2-i], filters_dec[0][i+1],
                                              activation=self.activation, device=device, 
                                              injection = self.injection,  residual = self.residual,
-                                             num_points =  sizes[-2-i]).to(device))
+                                             num_points =  sizes[-2-i], order = self.order, 
+                                             normalize = self.normalize, model = self.model).to(device))
                 input_size = filters_dec[0][i+1]  
                 
                 if filters_dec[1][i+1]:
                     self.dconv.append(SpiralConv(input_size,spiral_sizes[-2-i], filters_dec[1][i+1],
                                                  activation=self.activation, device=device, 
                                                  injection = self.injection, residual = self.residual,
-                                                 num_points = sizes[-2-i]).to(device))
+                                                 num_points = sizes[-2-i], order = self.order, 
+                                                 normalize = self.normalize, model = self.model).to(device))
                     input_size = filters_dec[1][i+1]
             else:
                 if filters_dec[1][i+1]:
                     self.dconv.append(SpiralConv(input_size, spiral_sizes[-2-i], filters_dec[0][i+1],
                                                  activation=self.activation, device=device, 
                                                  injection = self.injection, residual = self.residual,
-                                                 num_points = sizes[-2-i]).to(device))
+                                                 num_points = sizes[-2-i], order = self.order, 
+                                                 normalize = self.normalize, model = self.model,
+                                                 activation_flag = self.activation_flag).to(device))
                     input_size = filters_dec[0][i+1]                      
                     self.dconv.append(SpiralConv(input_size,spiral_sizes[-2-i], filters_dec[1][i+1],
                                                  activation='identity', device=device, 
                                                  injection = self.injection,  residual = self.residual,
-                                                 num_points = sizes[-2-i]).to(device))         
+                                                 num_points = sizes[-2-i], order = self.order,
+                                                 normalize = self.normalize, model = self.model).to(device))         
                     input_size = filters_dec[1][i+1] 
                 else:
                     self.dconv.append(SpiralConv(input_size, spiral_sizes[-2-i], filters_dec[0][i+1],
                                                  activation='identity', device=device,
                                                  injection = self.injection,  residual = self.residual,
-                                                 num_points = sizes[-2-i]).to(device))
+                                                 num_points = sizes[-2-i], order = self.order,
+                                                 normalize = self.normalize, model = self.model).to(device))
                     input_size = filters_dec[0][i+1]                      
                     
         self.dconv = nn.ModuleList(self.dconv)

@@ -1,8 +1,26 @@
+def isnotebook():
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+    
+    
 import os
 import torch
-from tqdm import tqdm
 import numpy as np
 import random
+
+
+if isnotebook():
+    from tqdm import tqdm_notebook as tqdm
+else:
+    from tqdm import tqdm
 
 def train_autoencoder_dataloader(dataloader_train, dataloader_val,
                                       device, model, optim, loss_fn, 
