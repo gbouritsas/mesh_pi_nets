@@ -8,7 +8,6 @@ import json
 import os
 import copy
 from facemesh import FaceData
-import time
 import pickle
 import trimesh
 
@@ -18,13 +17,13 @@ try:
 except ImportError:
     found = False
 if found:
-    from psbody.mesh import Mesh, MeshViewer, MeshViewers
+    from psbody.mesh import Mesh
 
 from autoencoder_dataset import autoencoder_dataset
 from torch.utils.data import DataLoader
 
 from spiral_utils import get_adj_trigs, generate_spirals
-from models import SpiralAutoencoder, SpiralAutoencoder_extra_conv
+from models import SpiralPolyAE
 
 from test_funcs import test_autoencoder_dataloader
 from train_funcs import train_autoencoder_dataloader
@@ -296,7 +295,7 @@ def main(args):
     
     
     if 'autoencoder' in args['generative_model']:
-        model = SpiralAutoencoder_extra_conv(filters_enc = args['filter_sizes_enc'],   
+        model = SpiralPolyAE(filters_enc = args['filter_sizes_enc'],
                                              filters_dec = args['filter_sizes_dec'],
                                              latent_size=args['nz'],
                                              sizes=sizes,

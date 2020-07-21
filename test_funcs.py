@@ -1,7 +1,6 @@
 import torch
 import copy
 from tqdm import tqdm, tqdm_notebook
-import numpy as np
 
 outlier_threshold = 1
 

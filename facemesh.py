@@ -13,14 +13,9 @@ except ImportError:
 if found:
     from psbody.mesh import Mesh, MeshViewer, MeshViewers
 
-from trimesh.exchange.export import export_mesh
 import trimesh
 
-import time
-from copy import deepcopy
-import random
 from sklearn.decomposition import PCA
-from tqdm import tqdm
 
 class FaceData(object):
     def __init__(self, nVal, train_file, test_file, reference_mesh_file,pca_n_comp=8, normalization = True, meshpackage = 'mpi-mesh', load_flag = True, mean_subtraction_only = False):
