@@ -3,6 +3,8 @@ import copy
 from tqdm import tqdm, tqdm_notebook
 import numpy as np
 
+outlier_threshold = 1
+
 def test_autoencoder_dataloader(device, model, dataloader_test, shapedata, mm_constant = 1000):
     model.eval()
     l1_loss = 0
@@ -30,7 +32,7 @@ def test_autoencoder_dataloader(device, model, dataloader_test, shapedata, mm_co
 #                 pass
             if torch.isnan(torch.mean(torch.abs(x_recon-x))) or torch.isinf(torch.mean(torch.abs(x_recon-x))):
                 print('warning, nan output')
-            elif torch.mean(torch.abs(x_recon-x)) > 10:
+            elif torch.mean(torch.abs(x_recon-x)) > outlier_threshold:
                 print('warning, outlier')
             else:
                 l1_loss+= torch.mean(torch.abs(x_recon-x)) * x.shape[0]
