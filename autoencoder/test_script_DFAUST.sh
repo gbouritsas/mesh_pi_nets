@@ -32,7 +32,7 @@ do
 					if ! ( [ $ORDER = 2 ] && [ $NORMALIZE = "2nd" ] ); then
 						if ! ( ( [ $MODEL = "simple" ] || [ $ORDER = 2 ] ) && [ $RESIDUAL = "True" ] ); then
 							echo "TPAMI/${ORDER_NAME}_order_${MODEL}_norm_${NORMALIZE}${RESIDUAL_NAME}${ACTIVATION_NAME}"
-							echo $(python spiral_higher_order.py --dataset DFAUST --mode test --order ${ORDER} --model ${MODEL}  --normalize ${NORMALIZE} --residual ${RESIDUAL} --activation ${ACTIVATION}  --results_folder TPAMI/${ORDER_NAME}_order_${MODEL}_norm_${NORMALIZE}${RESIDUAL_NAME}${ACTIVATION_NAME} --device_idx  1  --batch_size 16 --mm_constant ${1})
+							echo $(python spiral_higher_order.py --root_dir /data/gb318/datasets/ --dataset DFAUST --mode test --order ${ORDER} --model ${MODEL}  --normalize ${NORMALIZE} --residual ${RESIDUAL} --activation ${ACTIVATION}  --results_folder TPAMI/${ORDER_NAME}_order_${MODEL}_norm_${NORMALIZE}${RESIDUAL_NAME}${ACTIVATION_NAME} --device_idx  1  --batch_size 16 --mm_constant ${1})
 							i=$((i+1))
 						fi
 					fi
