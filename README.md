@@ -29,7 +29,7 @@ pip install tensorboardX
 
 ## Data
 
-We provide the templates (mesh topology) as well as their downsampled versions for the two datasets that we experimented with, namely [COMA](https://coma.is.tue.mpg.de/) and [DFAUST](http://dfaust.is.tue.mpg.de/). Unfortunately, we cannot provide the data in this repository, but they can be easily obtained from the authors of the datasets. Then, follow the instructions in the [Neural3DMM repo](https://github.com/gbouritsas/Neural3DMM) to organise the data as expected from the code. For COMA we use the splits provided by the authors (in the paper we report the results on the 'sliced' version of the dataset - interpolation experiment). If you would like to train on the same splits for DFAUST, please contact us in order to provide you the splits.
+We provide the templates (mesh topology) as well as their downsampled versions for the two datasets that we experimented with, namely [COMA](https://coma.is.tue.mpg.de/) and [DFAUST](http://dfaust.is.tue.mpg.de/). Unfortunately, we cannot provide the data in this repository, but they can be easily obtained from the authors of the datasets. Then, follow the instructions in the [Neural3DMM repo](https://github.com/gbouritsas/Neural3DMM) to organise the data as expected from the code. For COMA we use the splits provided by the authors (in the paper we report the results on the 'sliced' version of the dataset - interpolation experiment). If you would like to train on the same splits for DFAUST, please contact us.
 
 ## Important parameters
 
@@ -49,14 +49,26 @@ We provide the templates (mesh topology) as well as their downsampled versions f
 
 Example usage:
 
+**COMA**
 ```
 python spiral_pi_nets.py --root_dir ./datasets --name sliced --dataset COMA --mode train --order 3 --model full  --normalize 2nd --activation identity --residual True --results_folder 3rd_order_full_norm_2nd_residual_linear --device_idx 0 --batch_size 16 
+```
+
+**DFAUST**
+```
+python spiral_pi_nets.py --root_dir ./datasets --dataset DFAUST --mode train --order 3 --model full  --normalize 2nd --activation identity --residual True --results_folder 3rd_order_full_norm_2nd_residual_linear --device_idx 0 --batch_size 16 
 ```
 
 ## Testing
 
 Assign to the _results_folder_ argument the value of the folder where the pretrained network is saved. By setting the _mm_constant_ you can obtain measurements in milimiters. For COMA and DFAUST this value is 10^3. Example usage:
 
+**COMA**
 ```
 python spiral_pi_nets.py --root_dir ./datasets --name sliced --dataset COMA --mode test --order 3 --model full  --normalize 2nd --activation identity --residual True --results_folder 3rd_order_full_norm_2nd_residual_linear --device_idx 0 --batch_size 16 --mm_constant 1000
+```
+
+**DFAUST**
+```
+python spiral_pi_nets.py --root_dir ./datasets --dataset DFAUST --mode test --order 3 --model full  --normalize 2nd --activation identity --residual True --results_folder 3rd_order_full_norm_2nd_residual_linear --device_idx 0 --batch_size 16 --mm_constant 1000
 ```
