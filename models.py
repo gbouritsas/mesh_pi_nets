@@ -194,11 +194,13 @@ class SpiralPolyAE(nn.Module):
         self.filters_enc = filters_enc
         self.filters_dec = filters_dec
         self.spirals = spirals
+        self.mesh_sizes = mesh_sizes
         self.spiral_sizes = spiral_sizes
         self.D = D
         self.U = U
         self.device = device
         self.conv = []
+        
         input_size = filters_enc[0][0]
         for i in range(len(filters_enc)):
             for j in range(1, len(filters_enc[i])):
@@ -226,7 +228,7 @@ class SpiralPolyAE(nn.Module):
         for i in range(len(filters_dec)):
             for j in range(1, len(filters_dec[i])):
                 out_activation = 'identity' if i == len(filters_dec) - 1 and j == len(
-                    filters_dec[-1]) - 1 else self.activation
+                    filters_dec[-1]) - 1 else activation
                 self.dconv.append(SpiralPoly(input_size, spiral_sizes[-2 - i], filters_dec[i][j],
                                              activation=out_activation, device=device,
                                              injection=injection, residual=residual,
@@ -236,7 +238,7 @@ class SpiralPolyAE(nn.Module):
 
             if i < len(filters_dec) - 1:
                 out_activation = 'identity' if i == len(filters_dec) - 2 and len(
-                    filters_dec[-1]) == 1 else self.activation
+                    filters_dec[-1]) == 1 else activation
                 self.dconv.append(SpiralPoly(input_size, spiral_sizes[-2 - i], filters_dec[i + 1][0],
                                              activation=out_activation, device=device,
                                              injection=injection, residual=residual,

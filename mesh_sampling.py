@@ -6,6 +6,8 @@ import numpy as np
 import os
 import scipy.sparse as sp
 from scipy import spatial
+import pickle
+import trimesh
 
 try:
     import psbody.mesh

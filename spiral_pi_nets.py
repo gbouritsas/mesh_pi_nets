@@ -100,29 +100,27 @@ def main(args):
                                           'latent_' + str(args['nz']))
 
     ## Create folders
-
-    if not os.path.exists(os.path.join(args['results_folder'])):
-        os.makedirs(os.path.join(args['results_folder']))
-
+    
     summary_path = os.path.join(args['results_folder'], 'summaries', args['name'])
-    if not os.path.exists(summary_path):
-        os.makedirs(summary_path)
-
     checkpoint_path = os.path.join(args['results_folder'], 'checkpoints', args['name'])
-    if not os.path.exists(checkpoint_path):
-        os.makedirs(checkpoint_path)
-
     samples_path = os.path.join(args['results_folder'], 'samples', args['name'])
-    if not os.path.exists(samples_path):
-        os.makedirs(samples_path)
-
     prediction_path = os.path.join(args['results_folder'], 'predictions', args['name'])
-    if not os.path.exists(prediction_path):
-        os.makedirs(prediction_path)
-
     if not os.path.exists(args['downsample_directory']):
         os.makedirs(args['downsample_directory'])
-
+    
+    
+    if args['mode'] == 'train':
+        if not os.path.exists(os.path.join(args['results_folder'])):
+            os.makedirs(os.path.join(args['results_folder']))
+        if not os.path.exists(summary_path):
+            os.makedirs(summary_path)
+        if not os.path.exists(checkpoint_path):
+            os.makedirs(checkpoint_path)
+        if not os.path.exists(samples_path):
+            os.makedirs(samples_path)
+        if not os.path.exists(prediction_path):
+            os.makedirs(prediction_path)
+            
     ## Set reference points (refer to Neural3DMM paper for the discussion on reference points - tl;dr you can set them arbitrarily). Here chosen on the top of the head.
 
     if args['dataset'] == 'COMA':
@@ -263,7 +261,7 @@ def main(args):
         writer = SummaryWriter(summary_path)
         with open(os.path.join(args['results_folder'], 'checkpoints', args['name'] + '_params.json'), 'w') as fp:
             saveparams = copy.deepcopy(args)
-        json.dump(saveparams, fp)
+            json.dump(saveparams, fp)
 
         if args['resume']:
             print('loading checkpoint from file %s' % (os.path.join(checkpoint_path, args['checkpoint_file'])))
@@ -318,7 +316,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_threads', type=int, default=1)
 
     # paths, data etc.
-    parser.add_argument('--root_dir', type=str, default='./')
+    parser.add_argument('--root_dir', type=str, default='./datasets')
     parser.add_argument('--name', type=str, default='')
     parser.add_argument('--dataset', type=str, default='DFAUST')
     parser.add_argument('--downsample_method', type=str, default='COMA_downsample')
